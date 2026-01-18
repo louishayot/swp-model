@@ -16,8 +16,12 @@ def run_script(script_name, args_dict):
     cmd = [sys.executable, script_name]
 
     for arg, value in args_dict.items():
-        if isinstance(value, bool) and value:
-            cmd.append(f"--{arg}")
+        # if isinstance(value, bool) and value:
+        #     cmd.append(f"--{arg}")
+        if isinstance(value, bool):
+            if value:  # On n'ajoute le flag que s'il est True
+                cmd.append(f"--{arg}")
+            # Si value est False, on ne fait rien (on n'ajoute pas "False")
         elif isinstance(value, list):
             cmd.extend([f"--{arg}"] + [str(v) for v in value])
         elif value is not None:

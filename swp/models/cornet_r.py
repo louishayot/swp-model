@@ -1,1 +1,1 @@
-../../CORnet/cornet/cornet_r.py
+/Users/louishayot/MVA/ENS-LSCP/swp-model/../CORnet/cornet/cornet_r.py
