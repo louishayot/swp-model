@@ -629,3 +629,45 @@ def get_phoneme_to_id(
         train_data = get_train_dataset(force_recreate)
         phoneme_dict = create_phoneme_to_id(train_data, include_stress)
     return phoneme_dict
+
+
+def create_char_to_id(train_data: pd.DataFrame) -> dict[str, int]:
+    r"""Create a dictionary mapping characters to IDs from training data.
+
+    Extracts all unique characters from the Word column (lowercased),
+    then assigns IDs starting with special tokens.
+
+    Tokens: <PAD>=0, <SOS>=1, <EOS>=2, <UNK>=3, then sorted characters from id=4.
+    """
+    chars = set()
+    for word in train_data["Word"]:
+        chars.update(word.lower())
+
+    # Sort for deterministic ordering
+    sorted_chars = sorted(chars)
+
+    # Build mapping with special tokens first
+    char_to_id = {"<PAD>": 0, "<SOS>": 1, "<EOS>": 2, "<UNK>": 3}
+    for i, c in enumerate(sorted_chars):
+        char_to_id[c] = i + 4
+
+    # Save to file
+    char_dict_path = get_stimuli_dir() / "chars_to_id.json"
+    with char_dict_path.open("w") as f:
+        json.dump(char_to_id, f, indent=4)
+
+    return char_to_id
+
+
+def get_char_to_id(force_recreate: bool = False) -> dict[str, int]:
+    r"""Get saved character to ID dictionary if it exists, recreate it otherwise.
+
+    Use `force_recreate` to recreate from training data."""
+    char_dict_path = get_stimuli_dir() / "chars_to_id.json"
+    if char_dict_path.exists() and not force_recreate:
+        with char_dict_path.open("r") as f:
+            char_dict = json.load(f)
+    else:
+        train_data = get_train_dataset(force_recreate)
+        char_dict = create_char_to_id(train_data)
+    return char_dict
