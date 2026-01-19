@@ -152,6 +152,92 @@ class EncoderLSTM(PhonemeEncoder):
         return super().forward(inp)
 
 
+class TextEncoder(nn.Module):
+    r"""Base class for text encoders processing character sequences.
+
+    Similar to PhonemeEncoder but uses char_vocab_size for character input.
+    No embedding binding with decoder (different vocabularies).
+
+    Args:
+        char_vocab_size: number of characters in vocabulary
+        hidden_size: embedding and recurrent hidden dimensions
+        num_layers: number of recurrent layers
+        dropout: dropout rate
+    """
+
+    def __init__(
+        self,
+        char_vocab_size: int,
+        hidden_size: int,
+        num_layers: int,
+        dropout: float,
+    ) -> None:
+        super().__init__()
+        self.char_vocab_size = char_vocab_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.droprate = dropout
+
+        self.embedding = nn.Embedding(self.char_vocab_size, self.hidden_size)
+        self.recurrent: nn.RNNBase
+        self.dropout = nn.Dropout(self.droprate)
+        self.unrolling = False
+
+    def forward(self, inp: torch.Tensor):
+        """Forward pass. Returns hidden state from recurrent layer.
+
+        For RNN: returns h with shape (num_layers, batch, hidden)
+        For LSTM: returns (h, c) tuple with shapes (num_layers, batch, hidden)
+        """
+        out = self.dropout(self.embedding(inp))
+        _, hidden = self.recurrent(out)
+        return hidden
+
+    def to_unroll(self):
+        self.unrolling = True
+
+    def to_chain(self):
+        self.unrolling = False
+
+
+class TextEncoderRNN(TextEncoder):
+    r"""Text encoder based on RNN. Returns h with shape (num_layers, batch, hidden)."""
+
+    def __init__(
+        self,
+        char_vocab_size: int,
+        hidden_size: int,
+        num_layers: int,
+        dropout: float,
+    ):
+        super().__init__(char_vocab_size, hidden_size, num_layers, dropout)
+        self.recurrent = nn.RNN(
+            self.hidden_size, self.hidden_size, self.num_layers, batch_first=True
+        )
+
+    def forward(self, inp: torch.Tensor) -> torch.Tensor:
+        return super().forward(inp)
+
+
+class TextEncoderLSTM(TextEncoder):
+    r"""Text encoder based on LSTM. Returns (h, c) tuple with shapes (num_layers, batch, hidden)."""
+
+    def __init__(
+        self,
+        char_vocab_size: int,
+        hidden_size: int,
+        num_layers: int,
+        dropout: float,
+    ):
+        super().__init__(char_vocab_size, hidden_size, num_layers, dropout)
+        self.recurrent = nn.LSTM(
+            self.hidden_size, self.hidden_size, self.num_layers, batch_first=True
+        )
+
+    def forward(self, inp: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        return super().forward(inp)
+
+
 def cornet_loader(
     model_letter: str,
     pretrained: bool = True,
