@@ -4,3 +4,4 @@ from .graphemes import (
     get_mixed_trainloader,
 )
 from .phonemes import get_phoneme_testloader, get_phoneme_trainloader
+from .text import get_text_testloader, get_text_trainloader
