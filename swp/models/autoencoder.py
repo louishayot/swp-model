@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from .decoders import PhonemeDecoder
-from .encoders import PhonemeEncoder, VisualEncoder
+from .encoders import PhonemeEncoder, TextEncoder, VisualEncoder
 
 
 def find_and_delete_batchdim(shape: torch.Size) -> tuple[int | None, torch.Size]:
@@ -181,22 +181,27 @@ class Unimodel(nn.Module):
         `encoder` : encoder part of the model
         `decoder` : decoder part of the model
         `is_auditory` : `True` if encoder part is a `PhonemeEncoder`
+        `is_text` : `True` if encoder part is a `TextEncoder`
         `is_visual` : `True` if encoder part is a `VisualEncoder`
         `start_tensor` : tensor passed to the decoder at the beginning of decoding
     """
 
     def __init__(
         self,
-        encoder: PhonemeEncoder | VisualEncoder,
+        encoder: PhonemeEncoder | TextEncoder | VisualEncoder,
         decoder: PhonemeDecoder,
         start_token_id: int,
     ):
         super(Unimodel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
+
+        # Always define all boolean flags
         self.is_auditory = isinstance(self.encoder, PhonemeEncoder)
-        if isinstance(self.encoder, VisualEncoder):
-            self.is_visual = True
+        self.is_text = isinstance(self.encoder, TextEncoder)
+        self.is_visual = isinstance(self.encoder, VisualEncoder)
+
+        if self.is_visual:
             if not can_reshape_magic(
                 self.encoder.hidden_shape, self.decoder.expected_hidden_shape
             ):
@@ -210,15 +215,17 @@ class Unimodel(nn.Module):
         self, inp: torch.Tensor, target: torch.Tensor
     ) -> tuple[torch.Tensor, None | torch.Tensor]:
         object_pred = None
-        if isinstance(self.encoder, PhonemeEncoder):
-            hidden = self.encoder(inp)
-        else:
+        if self.is_visual:
+            # Visual encoder returns (object_pred, hidden) tuple, needs reshape
             object_pred, toreshape_hidden = self.encoder(inp)
             hidden = reshape_magic(
                 toreshape_hidden,
                 self.encoder.hidden_shape,
                 self.decoder.expected_hidden_shape,
             )
+        else:
+            # Sequence encoder (auditory or text) returns hidden directly
+            hidden = self.encoder(inp)
         start = (
             torch.Tensor([self.start_token_id])
             .repeat((inp.size(0), 1))
@@ -228,7 +235,9 @@ class Unimodel(nn.Module):
         return phoneme_prediction, object_pred
 
     def bind(self):
-        if isinstance(self.encoder, PhonemeEncoder):
+        # Only bind for auditory (same phoneme vocab in encoder/decoder)
+        # Text encoder has different vocab (chars vs phonemes) - no binding
+        if self.is_auditory:
             self.decoder.embedding = self.encoder.embedding
 
     def to_unroll(self):
