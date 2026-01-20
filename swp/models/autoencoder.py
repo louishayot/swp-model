@@ -3,6 +3,7 @@ from typing import overload
 import torch
 import torch.nn as nn
 
+from .acoustic_encoder import AcousticEncoder
 from .decoders import PhonemeDecoder
 from .encoders import PhonemeEncoder, VisualEncoder
 
@@ -162,10 +163,10 @@ def reshape_magic(
 
 
 class Unimodel(nn.Module):
-    r"""A Module interfacing either an auditory or a visual encoder with a vocal decoder.
+    r"""A Module interfacing either an auditory, visual, or acoustic encoder with a vocal decoder.
 
     Over forward pass, returns both the `phoneme_prediction` of the decoder, and
-    the added `object_pred` from the visual encoder, defaulting to `None` for auditory encoders.
+    the added `object_pred` from the visual encoder, defaulting to `None` for auditory/acoustic encoders.
 
     Args :
         `encoder` : instantiated encoder
@@ -182,12 +183,13 @@ class Unimodel(nn.Module):
         `decoder` : decoder part of the model
         `is_auditory` : `True` if encoder part is a `PhonemeEncoder`
         `is_visual` : `True` if encoder part is a `VisualEncoder`
+        `is_acoustic` : `True` if encoder part is an `AcousticEncoder`
         `start_tensor` : tensor passed to the decoder at the beginning of decoding
     """
 
     def __init__(
         self,
-        encoder: PhonemeEncoder | VisualEncoder,
+        encoder: PhonemeEncoder | VisualEncoder | AcousticEncoder,
         decoder: PhonemeDecoder,
         start_token_id: int,
     ):
@@ -195,24 +197,48 @@ class Unimodel(nn.Module):
         self.encoder = encoder
         self.decoder = decoder
         self.is_auditory = isinstance(self.encoder, PhonemeEncoder)
-        if isinstance(self.encoder, VisualEncoder):
-            self.is_visual = True
+        self.is_acoustic = isinstance(self.encoder, AcousticEncoder)
+        self.is_visual = isinstance(self.encoder, VisualEncoder)
+        # Check reshape compatibility for non-phoneme encoders
+        if isinstance(self.encoder, (VisualEncoder, AcousticEncoder)):
             if not can_reshape_magic(
                 self.encoder.hidden_shape, self.decoder.expected_hidden_shape
             ):
                 raise ValueError(
-                    f"Visual encoder outputs cannot be reshaped as auditory decoder hidden state"
+                    f"Encoder outputs cannot be reshaped as decoder hidden state"
                 )
         self.start_token_id = start_token_id
         self.bind()
 
     def forward(
-        self, inp: torch.Tensor, target: torch.Tensor
+        self,
+        inp: torch.Tensor,
+        target: torch.Tensor,
+        lengths: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, None | torch.Tensor]:
+        """Forward pass through encoder and decoder.
+
+        Args:
+            inp: Input tensor (phonemes, images, or acoustic features)
+            target: Target phoneme sequence
+            lengths: Optional sequence lengths for acoustic encoder (batch,)
+
+        Returns:
+            tuple of (phoneme_prediction, object_pred)
+        """
         object_pred = None
         if isinstance(self.encoder, PhonemeEncoder):
             hidden = self.encoder(inp)
+        elif isinstance(self.encoder, AcousticEncoder):
+            # Acoustic encoder needs lengths for pack_padded_sequence
+            object_pred, toreshape_hidden = self.encoder(inp, lengths)
+            hidden = reshape_magic(
+                toreshape_hidden,
+                self.encoder.hidden_shape,
+                self.decoder.expected_hidden_shape,
+            )
         else:
+            # Visual encoder
             object_pred, toreshape_hidden = self.encoder(inp)
             hidden = reshape_magic(
                 toreshape_hidden,

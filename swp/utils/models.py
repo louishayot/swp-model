@@ -2,6 +2,7 @@ from typing import TypedDict
 
 import torch
 
+from ..models.acoustic_encoder import AcousticEncoder
 from ..models.autoencoder import Bimodel, Unimodel
 from ..models.decoders import DecoderLSTM, DecoderRNN
 from ..models.encoders import CorNetEncoder, EncoderLSTM, EncoderRNN
@@ -54,9 +55,17 @@ class CNNArgs(TypedDict):
     cnn_model: str
 
 
+class AcousticArgs(TypedDict):
+    r"""TypedDict containing values required to create an acoustic encoder :
+    `input_dim` : input feature dimension (768 for wav2vec2-base, 1024 for large)
+    """
+
+    input_dim: int
+
+
 class ModelArgs(TypedDict):
     r"""TypedDict containing values required to create a model :
-    `model_class` : expected to contain values `"Ua"`, `"Uv"` or `"B"` for Unimodel auditory, Unimodel visual and Bimodel
+    `model_class` : expected to contain values `"Ua"`, `"Ua_w2v"`, `"Uv"` or `"B"`
     `recur_type` : expected to contain values `"LSTM"` or `"RNN"`
     `hidden_size` : hidden size of the network
     `num_layers` : number of recurrent layers
@@ -65,6 +74,7 @@ class ModelArgs(TypedDict):
     `tf_ratio` : teacher forcing ratio
     `start_token_id` : id of the token to use as first input for decoding
     `cnn_args` : `CNNArgs` dict containing the information for the visual decoder, or None if not relevant
+    `acoustic_args` : `AcousticArgs` dict for acoustic encoder, or None if not relevant
     """
 
     model_class: str
@@ -76,6 +86,7 @@ class ModelArgs(TypedDict):
     tf_ratio: float
     start_token_id: int
     cnn_args: CNNArgs | None
+    acoustic_args: AcousticArgs | None
 
 
 class TrainArgs(TypedDict):
@@ -89,23 +100,45 @@ class TrainArgs(TypedDict):
 def get_model_args(model_name: str) -> ModelArgs:
     r"""Create a dictionnary containing the necessary arguments to build a model
     from a `model_name`. See `ModelArgs` class for more information."""
-    # TODO make modular with other cnn encoders
+    # Split on __ to separate main name from encoder-specific args
     big_split = model_name.split("__")
     main_name = big_split[0]
     name_split = main_name.split("_")
-    model_class = name_split[0]
-    recur_type = name_split[1]
-    str_args = {arg[0]: arg[1:] for arg in name_split[2:]}
+
+    # Check for Ua_w2v (acoustic) model
+    if name_split[0] == "Ua" and len(name_split) > 1 and name_split[1] == "w2v":
+        model_class = "Ua_w2v"
+        recur_type = name_split[2]
+        str_args = {arg[0]: arg[1:] for arg in name_split[3:]}
+    else:
+        model_class = name_split[0]
+        recur_type = name_split[1]
+        str_args = {arg[0]: arg[1:] for arg in name_split[2:]}
+
     cnn_args = None
+    acoustic_args = None
+
+    # Parse encoder-specific args from suffix
     if len(big_split) > 1:
-        cnn_str = big_split[1][1:]
-        str_cnn_args = {arg[0]: arg[1:] for arg in cnn_str.split("_")}
-        cnn_args = CNNArgs(
-            {
-                "hidden_size": int(str_cnn_args["h"]),
-                "cnn_model": str_cnn_args["m"],
-            }
-        )
+        suffix = big_split[1]
+        if suffix.startswith("c"):
+            # CNN args for visual encoder
+            cnn_str = suffix[1:]
+            str_cnn_args = {arg[0]: arg[1:] for arg in cnn_str.split("_")}
+            cnn_args = CNNArgs(
+                {
+                    "hidden_size": int(str_cnn_args["h"]),
+                    "cnn_model": str_cnn_args["m"],
+                }
+            )
+        elif suffix.startswith("g"):
+            # Acoustic args (g for "generic" acoustic config)
+            acoustic_str = suffix[1:]
+            # Parse acoustic args - format: i{input_dim}
+            str_acoustic_args = {arg[0]: arg[1:] for arg in acoustic_str.split("_") if arg}
+            input_dim = int(str_acoustic_args.get("i", 768))  # Default to wav2vec2-base
+            acoustic_args = AcousticArgs({"input_dim": input_dim})
+
     model_args = ModelArgs(
         {
             "model_class": model_class,
@@ -117,6 +150,7 @@ def get_model_args(model_name: str) -> ModelArgs:
             "tf_ratio": float(str_args["t"]),
             "start_token_id": int(str_args["s"]),
             "cnn_args": cnn_args,
+            "acoustic_args": acoustic_args,
         }
     )
     return model_args
@@ -124,7 +158,6 @@ def get_model_args(model_name: str) -> ModelArgs:
 
 def get_model(model_name: str) -> Unimodel | Bimodel:
     r"""Create a model corresponding to the `model_name`"""
-    # TODO make modular with other CNN encoders
     model_args = get_model_args(model_name)
     recur_type = model_args["recur_type"].upper()
     if recur_type == "LSTM":
@@ -145,15 +178,35 @@ def get_model(model_name: str) -> Unimodel | Bimodel:
         tf_ratio=model_args["tf_ratio"],
     )
     model_class = model_args["model_class"]
-    if model_class.startswith("U"):
-        if model_class[1] == "a":
+
+    # Handle Ua_w2v (acoustic) models
+    if model_class == "Ua_w2v":
+        # Default to wav2vec2-base dimensions if not specified
+        if model_args["acoustic_args"] is not None:
+            input_dim = model_args["acoustic_args"]["input_dim"]
+        else:
+            input_dim = 768  # wav2vec2-base default
+        encoder = AcousticEncoder(
+            input_dim=input_dim,
+            hidden_size=model_args["hidden_size"],
+            num_layers=model_args["num_layers"],
+            dropout=model_args["droprate"],
+            recur_type=recur_type,
+        )
+        model = Unimodel(
+            encoder=encoder,
+            decoder=decoder,
+            start_token_id=model_args["start_token_id"],
+        )
+    elif model_class.startswith("U"):
+        if model_class == "Ua":
             encoder = audit_encoder_class(
                 vocab_size=model_args["vocab_size"],
                 hidden_size=model_args["hidden_size"],
                 num_layers=model_args["num_layers"],
                 dropout=model_args["droprate"],
             )
-        elif model_class[1] == "v":
+        elif model_class == "Uv":
             if model_args["cnn_args"] is None:
                 raise ValueError(
                     "No arguments corresponding to the visual encoder in a visual model"
@@ -164,7 +217,7 @@ def get_model(model_name: str) -> Unimodel | Bimodel:
             )
         else:
             raise ValueError(
-                f"Trying to name a Unimodel that is neither auditory nor visual, type : {model_class[1:]}"
+                f"Trying to name a Unimodel that is neither auditory, visual, nor acoustic: {model_class}"
             )
         model = Unimodel(
             encoder=encoder,
@@ -199,17 +252,22 @@ def get_model(model_name: str) -> Unimodel | Bimodel:
 
 def get_model_name(model: Unimodel | Bimodel) -> str:
     r"""Returns the codified `model_name` corresponding to the `model`"""
-    # TODO make modular with other CNN encoders
-    cnn_str = None
+    suffix_str = None
     if isinstance(model, Unimodel):
         if model.is_auditory:
             model_name = "Ua"
-        else:
+        elif model.is_acoustic:
+            model_name = "Ua_w2v"
+            # Add acoustic args suffix
+            suffix_str = f"i{model.encoder.input_dim}"
+        elif model.is_visual:
             model_name = "Uv"
-            cnn_str = f"h{model.encoder.hidden_size}_m{model.encoder.cnn_model}"
+            suffix_str = f"h{model.encoder.hidden_size}_m{model.encoder.cnn_model}"
+        else:
+            model_name = "U_unknown"
     else:
         model_name = "B"
-        cnn_str = (
+        suffix_str = (
             f"h{model.visual_encoder.hidden_size}_m{model.visual_encoder.cnn_model}"
         )
     if isinstance(model.decoder, DecoderLSTM):
@@ -222,8 +280,12 @@ def get_model_name(model: Unimodel | Bimodel) -> str:
     model_name = f"{model_name}_d{model.decoder.droprate}"
     model_name = f"{model_name}_t{model.decoder.tf_ratio}"
     model_name = f"{model_name}_s{model.start_token_id}"
-    if cnn_str is not None:
-        model_name = f"{model_name}__c{cnn_str}"
+    if suffix_str is not None:
+        # Use 'c' prefix for CNN args (visual), 'g' prefix for acoustic args
+        if model.is_acoustic if isinstance(model, Unimodel) else False:
+            model_name = f"{model_name}__g{suffix_str}"
+        else:
+            model_name = f"{model_name}__c{suffix_str}"
     return model_name
 
 
@@ -237,10 +299,10 @@ def get_model_name_from_args(
     tf_ratio: float,
     start_token_id: int,
     cnn_args: CNNArgs | None = None,
+    acoustic_args: AcousticArgs | None = None,
     **kwargs,
 ) -> str:
     r"""Generate the `model_name` from the arguments that would allow to generate the model"""
-    # TODO make modular with other CNN encoders
     model_name = f"{model_class}_{recur_type.upper()}"
     model_name = f"{model_name}_h{hidden_size}"
     model_name = f"{model_name}_l{num_layers}"
@@ -251,6 +313,9 @@ def get_model_name_from_args(
     if cnn_args is not None:
         cnn_str = f'h{cnn_args["hidden_size"]}_m{cnn_args["cnn_model"]}'
         model_name = f"{model_name}__c{cnn_str}"
+    elif acoustic_args is not None:
+        acoustic_str = f'i{acoustic_args["input_dim"]}'
+        model_name = f"{model_name}__g{acoustic_str}"
     return model_name
 
 

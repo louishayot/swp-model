@@ -132,3 +132,10 @@ def get_notebooks_dir() -> pathlib.Path:
     notebooks_dir = repo_root / "notebooks"
     notebooks_dir.mkdir(parents=True, exist_ok=True)
     return notebooks_dir
+
+
+def get_acoustic_features_dir() -> pathlib.Path:
+    """Get directory for pre-extracted acoustic features (wav2vec2/HuBERT)."""
+    acoustic_dir = get_stimuli_dir() / "acoustic_features"
+    acoustic_dir.mkdir(parents=True, exist_ok=True)
+    return acoustic_dir

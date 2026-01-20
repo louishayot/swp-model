@@ -14,3 +14,7 @@ levenshtein>=0.26.1
 eng_to_ipa>=0.0.2
 nltk>=3.9.1
 statsmodels>=0.14.4
+transformers>=4.30.0
+datasets[audio]>=4.0.0
+torchcodec==0.9.1
+soundfile
