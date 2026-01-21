@@ -12,11 +12,13 @@ Neural models for single-word processing with an auditory repetition pathway. Th
 
 - Setup
 - Training
+- Acoustic pathway (Ua_w2v)
 - Load weights
 - Repository structure
 - Reproduce the paper figures
 - Reproducibility practices (seeds, paths, caching)
 - Troubleshooting
+- Experimental: Sentence-level acoustic extraction
 - Citations
 
 ## Setup
@@ -70,7 +72,100 @@ What gets saved where
   - `model_name` example: `Ua_LSTM_h128_l1_v42_d0.0_t0.0_s1`
   - `train_name` example: `b1024_l0.001_fall_s42_sn_ec`
 
+## Acoustic pathway (Ua_w2v)
+
+The acoustic pathway (`Ua_w2v`) uses frozen wav2vec2 features as input instead of phoneme sequences, while keeping the **same phoneme decoder** as `Ua`. This enables direct comparison between phoneme-input and acoustic-input models on the single-word repetition task.
+
+**Why word-level audio?** The paper studies single-word repetition, not sentence-level speech recognition. We use the [Speech Commands](https://huggingface.co/datasets/google/speech_commands) dataset (isolated single-word utterances) to match this setting. LibriSpeech sentences are kept as a separate experimental path (see below).
+
+### Prerequisites
+
+```bash
+pip install transformers datasets torchaudio
+```
+
+Note: The Speech Commands dataset uses a custom HuggingFace loading script, so the extraction script sets `trust_remote_code=True`.
+
+### Quick start (word-level)
+
+```bash
+# 1. Extract wav2vec2 features from Speech Commands (35 words × 100 samples)
+python scripts/extract_speech_commands.py \
+    --output_dir ./acoustic_words_train \
+    --limit 100
+
+# 2. Train acoustic model
+python scripts/train_acoustic.py \
+    --manifest_path ./acoustic_words_train/manifest.json \
+    --batch_size 32 \
+    --num_epochs 50 \
+    --verbose
+
+# 3. Test (auto-detects model from manifest)
+python scripts/test_acoustic.py \
+    --manifest_path ./acoustic_words_train/manifest.json \
+    --verbose
+```
+
+### Overfit sanity check
+
+To verify the pipeline works, train on a tiny subset:
+
+```bash
+# Extract 10 samples of just "yes"
+python scripts/extract_speech_commands.py \
+    --output_dir ./acoustic_words_overfit \
+    --words yes \
+    --limit 10
+
+# Train (should reach 0 errors within ~50 epochs)
+python scripts/train_acoustic.py \
+    --manifest_path ./acoustic_words_overfit/manifest.json \
+    --batch_size 10 \
+    --num_epochs 100 \
+    --verbose
+
+# Test (expect 100% accuracy)
+python scripts/test_acoustic.py \
+    --manifest_path ./acoustic_words_overfit/manifest.json \
+    --verbose
+```
+
+Expected output: `Accuracy: 1.0000 (0.00% error rate)` with predictions exactly matching `Y EH S <EOS>`.
+
+### Model naming
+
+Acoustic models follow the same naming convention as `Ua`:
+
+- `model_name`: `Ua_w2v_LSTM_h128_l1_v42_d0.0_t0.0_s1__gi768`
+  - `Ua_w2v` = auditory pathway with wav2vec2 features
+  - `gi768` = input dimension (768 for wav2vec2-base)
+- `train_name`: `b32_l0.001_fall_s42_sn_ec` (same format as `Ua`)
+
+### Design notes
+
+- **Frozen wav2vec2**: Features are extracted offline (no fine-tuning). Only the projection layer and RNN are trained.
+- **Same decoder**: `Ua_w2v` uses the identical `DecoderLSTM` and phoneme vocabulary as `Ua`, enabling direct comparison.
+- **Length-safe encoding**: Uses `pack_padded_sequence` so padding doesn't affect hidden state representations.
+
 ### Load weights
+
+```python
+from swp.utils.models import get_model, load_weights
+from swp.utils.setup import set_device
+
+model_name = "Ua_w2v_LSTM_h128_l1_v42_d0.0_t0.0_s1__gi768"
+train_name = "b32_l0.001_fall_s42_sn_ec"
+checkpoint = "50"
+
+device = set_device()
+model = get_model(model_name)
+load_weights(model, model_name, train_name, checkpoint, device)
+```
+
+## Load weights
+
+Load trained `Ua` (phoneme-input) models:
 
 ```python
 from swp.utils.models import get_model, load_weights
@@ -181,6 +276,26 @@ Use your own trained weights in analyses
   - Install with `pip install -r requirements.txt`. On Slurm, the job scripts set up the env automatically.
 - CUDA not found / GPU not visible
   - Check `python -c "import torch; print(torch.cuda.is_available())"`. On Slurm, ensure the proper module is loaded and `--gres` is set.
+
+## Experimental: Sentence-level acoustic extraction
+
+> **Note**: This section describes sentence-level audio extraction from LibriSpeech, which is **not directly comparable** to the single-word `Ua` models in the paper. Use the Speech Commands word-level pipeline above for comparable experiments.
+
+The `scripts/extract_features.py` script extracts wav2vec2 features from LibriSpeech sentences. This may be useful for future experiments on longer sequences, but the task distribution differs significantly from single-word repetition.
+
+```bash
+# Extract features from LibriSpeech validation set (sentences, not comparable to Ua)
+python scripts/extract_features.py \
+    --output_dir ./acoustic_features_sentences \
+    --split validation.clean \
+    --limit 100
+```
+
+Key differences from word-level:
+- LibriSpeech samples are full sentences (50-100+ phonemes)
+- Task difficulty is much higher
+- Error patterns will differ from single-word models
+- Not suitable for direct comparison with paper results
 
 ## Citations
 

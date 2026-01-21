@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 """Extract wav2vec2 features from LibriSpeech via HuggingFace datasets.
 
-This script extracts acoustic features from LibriSpeech audio using
-a frozen wav2vec2 model and saves them to disk for offline training.
+WARNING: This script extracts SENTENCE-LEVEL audio from LibriSpeech.
+LibriSpeech samples are full sentences (50-100+ phonemes), which is NOT
+directly comparable to the single-word Ua models in the paper.
+
+For word-level audio comparable to Ua, use:
+    python scripts/extract_speech_commands.py
+
+This script may be useful for future experiments on longer sequences,
+but results will differ significantly from single-word repetition.
 
 Usage:
     python scripts/extract_features.py \
@@ -156,7 +163,8 @@ def extract_features_batch(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Extract wav2vec2 features from LibriSpeech"
+        description="Extract wav2vec2 features from LibriSpeech (SENTENCE-LEVEL - not comparable to single-word Ua). "
+                    "For word-level audio, use extract_speech_commands.py instead."
     )
     parser.add_argument(
         "--output_dir",
