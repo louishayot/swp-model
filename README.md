@@ -148,6 +148,20 @@ Acoustic models follow the same naming convention as `Ua`:
 - **Same decoder**: `Ua_w2v` uses the identical `DecoderLSTM` and phoneme vocabulary as `Ua`, enabling direct comparison.
 - **Length-safe encoding**: Uses `pack_padded_sequence` so padding doesn't affect hidden state representations.
 
+### Results
+
+**Overfit sanity check (b10, 10 samples):**
+
+![Overfit learning curves](docs/figures/learning_curve_overfit_b10.png)
+
+The model successfully overfits to a tiny dataset, reaching 0 errors within 50-100 epochs. This validates that the architecture and training loop work correctly.
+
+**Full word-level training (b32, 3500 samples):**
+
+![Full training learning curves](docs/figures/learning_curve_full_b32.png)
+
+On the full Speech Commands dataset, the model achieves ~100% accuracy at epoch 50, demonstrating successful word-level repetition learning from acoustic features.
+
 ### Generate learning curve figures
 
 After training, generate learning curve plots from the training logs:
