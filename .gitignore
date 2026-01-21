@@ -173,3 +173,7 @@ notebooks/data
 reproduce/data
 reproduce/figures
 !reproduce/weights
+acoustic_features_*/
+acoustic_words_*/
+logs_acoustic_*/
+figs/

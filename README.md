@@ -76,7 +76,7 @@ What gets saved where
 
 The acoustic pathway (`Ua_w2v`) uses frozen wav2vec2 features as input instead of phoneme sequences, while keeping the **same phoneme decoder** as `Ua`. This enables direct comparison between phoneme-input and acoustic-input models on the single-word repetition task.
 
-**Why word-level audio?** The paper studies single-word repetition, not sentence-level speech recognition. We use the [Speech Commands](https://huggingface.co/datasets/google/speech_commands) dataset (isolated single-word utterances) to match this setting. LibriSpeech sentences are kept as a separate experimental path (see below).
+**Why word-level audio?** The paper studies single-word repetition, not sentence-level speech recognition. We use the [Speech Commands](https://huggingface.co/datasets/google/speech_commands) dataset (isolated single-word utterances) to match this setting. For sentence-level experiments (not comparable to Ua), see [Experimental: Sentence-level acoustic extraction](#experimental-sentence-level-acoustic-extraction).
 
 ### Prerequisites
 
@@ -148,6 +148,35 @@ Acoustic models follow the same naming convention as `Ua`:
 - **Same decoder**: `Ua_w2v` uses the identical `DecoderLSTM` and phoneme vocabulary as `Ua`, enabling direct comparison.
 - **Length-safe encoding**: Uses `pack_padded_sequence` so padding doesn't affect hidden state representations.
 
+### Generate learning curve figures
+
+After training, generate learning curve plots from the training logs:
+
+```bash
+# Generate figures for all acoustic models
+python scripts/make_acoustic_figures.py
+
+# Generate figure for a specific run
+python scripts/make_acoustic_figures.py \
+    --model_name Ua_w2v_LSTM_h128_l1_v42_d0.0_t0.0_s1__gi768 \
+    --train_name b32_l0.001_fall_s42_sn_ec
+
+# Specify output directory
+python scripts/make_acoustic_figures.py --output_dir ./figs
+```
+
+Figures are saved to `./figs/` by default and include train/valid loss and error curves.
+
+### Run full smoke test
+
+To run the entire acoustic pipeline (extraction → training → testing) for both overfit and full word-level settings:
+
+```bash
+./run_acoustic_smoke.sh
+```
+
+This creates logs in `./logs_acoustic_words/` and trained models in `./weights/`.
+
 ### Load weights
 
 ```python
@@ -210,9 +239,14 @@ Top-level folders:
   - `viz/` — Plotting utilities for figures and analyses
   - `utils/` — Paths, seeding, model name/args parsing, weight IO, grid tools
 - `scripts/` — CLI entry points for training/eval and Slurm
-  - `train_repetition.py` — Local training
+  - `train_repetition.py` — Local training (phoneme-input Ua)
+  - `train_acoustic.py` — Local training (acoustic-input Ua_w2v)
+  - `test_repetition.py` — Evaluate Ua checkpoints; save results + figures
+  - `test_acoustic.py` — Evaluate Ua_w2v checkpoints
+  - `extract_speech_commands.py` — Extract wav2vec2 features from Speech Commands (word-level)
+  - `extract_features.py` — Extract wav2vec2 features from LibriSpeech (sentence-level, experimental)
+  - `make_acoustic_figures.py` — Generate learning curve PNGs from training logs
   - `train_repetition.sh` — Slurm training wrapper (Jean Zay)
-  - `test_repetition.py` — Evaluate checkpoints; save results + figures
   - `grid_search.sh` — Submit a grid of Slurm jobs
   - `local_test.sh` — Run Slurm scripts locally (no SBATCH)
   - `generate_queuer.py` — Generate job queue from a grid
