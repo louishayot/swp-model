@@ -46,6 +46,7 @@ from swp.utils.models import (
     get_train_args,
     get_train_name,
 )
+from swp.utils.paths import get_weights_dir
 from swp.utils.setup import backend_setup, seed_everything, set_device
 
 
@@ -284,6 +285,20 @@ if __name__ == "__main__":
         verbose=args.verbose,
     )
 
+    # Save run info for easy testing
+    run_info_path = get_weights_dir() / model_name / train_name / "run_info.json"
+    run_info = {
+        "model_name": model_name,
+        "train_name": train_name,
+        "manifest_path": str(manifest_path),
+        "num_epochs": args.num_epochs,
+        "include_stress": include_stress,
+    }
+    import json
+    with open(run_info_path, "w") as f:
+        json.dump(run_info, f, indent=2)
+
     if args.verbose:
-        print(f"\n{model_name}~{train_name}\n")
+        print(f"\n{model_name}~{train_name}")
+        print(f"Run info saved to: {run_info_path}")
         print("-" * 60)
