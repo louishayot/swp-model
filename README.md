@@ -10,16 +10,27 @@ Neural models for single-word processing with an auditory repetition pathway. Th
 
 ## Table of contents
 
-- [Setup](#setup)
-- [Training](#training)
-- [Acoustic pathway (Ua_w2v)](#acoustic-pathway-ua_w2v)
-- [Load weights](#load-weights)
-- [Repository structure](#repository-structure)
-- [Reproduce the paper figures](#reproduce-the-paper-figures)
-- [Reproducibility practices](#reproducibility-practices)
-- [Troubleshooting](#troubleshooting)
-- [Experimental: Sentence-level acoustic extraction](#experimental-sentence-level-acoustic-extraction)
-- [Citations](#citations)
+- [A Neural Model for Word Repetition](#a-neural-model-for-word-repetition)
+  - [Table of contents](#table-of-contents)
+  - [Setup](#setup)
+  - [Training](#training)
+  - [Acoustic pathway (Ua\_w2v)](#acoustic-pathway-ua_w2v)
+    - [Status / what’s missing](#status--whats-missing)
+    - [Prerequisites](#prerequisites)
+    - [Quick start](#quick-start)
+    - [Outputs](#outputs)
+    - [Code changes in this branch](#code-changes-in-this-branch)
+    - [Example figures](#example-figures)
+    - [Architecture](#architecture)
+    - [Load trained models](#load-trained-models)
+    - [Next steps (toward paper-aligned behavioral probes)](#next-steps-toward-paper-aligned-behavioral-probes)
+  - [Load weights](#load-weights)
+  - [Repository structure](#repository-structure)
+  - [Reproduce the paper figures](#reproduce-the-paper-figures)
+  - [Reproducibility practices](#reproducibility-practices)
+  - [Troubleshooting](#troubleshooting)
+  - [Experimental: Sentence-level acoustic extraction](#experimental-sentence-level-acoustic-extraction)
+  - [Citations](#citations)
 
 ## Setup
 
@@ -82,6 +93,11 @@ The acoustic pathway (`Ua_w2v`) replaces phoneme-input with frozen wav2vec2 feat
 - Uses Speech Commands dataset (35 words, isolated utterances) for word-level baseline
 - Same decoder architecture, vocabulary (42 phonemes), and training procedure as `Ua`
 - For sentence-level experiments (not comparable to Ua), see [Experimental: Sentence-level acoustic extraction](#experimental-sentence-level-acoustic-extraction)
+
+### Status / what’s missing
+- **Status:** acoustic feature extraction + training/testing scaffold run end-to-end, while keeping the **same phoneme decoder/vocabulary** as `Ua` for comparability. This branch focuses on getting a lightweight baseline running reliably.
+- **What’s missing:** (i) choose a paper-aligned data/target formulation (true phoneme targets vs G2P vs forced alignment) on the SWP wordlists, (ii) train to convergence + run the same behavioral diagnostics/ablations as the paper, and (iii) confirm that key signatures (e.g., early-termination / unit-49 effects) persist under realistic acoustic inputs.
+
 
 ### Prerequisites
 
@@ -187,18 +203,14 @@ model = get_model(model_name)
 load_weights(model, model_name, train_name, checkpoint, device)
 ```
 
-### Next steps: Paper-aligned TTS wordlists (WFE/SSP)
+### Next steps (toward paper-aligned behavioral probes)
 
-Speech Commands is a sanity baseline but not aligned with the paper's curated wordlists. To enable paper-aligned behavioral analyses (WFE, SSP, unit-49 ablation, early-EOS signatures):
+The current setup is a **sanity baseline** to validate the acoustic→decoder pipeline, but it is not yet aligned with the paper’s curated SWP wordlists (WFE/SSP).
 
-- [ ] Export SWP train/eval wordlists to .txt
-- [ ] Generate TTS audio (gTTS, pyttsx3, or Tacotron2)
-- [ ] Extract wav2vec2 features from TTS audio
-- [ ] Train Ua_w2v on SWP wordlists
-- [ ] Run paper-aligned eval scripts (`reproduce/scripts/`)
-- [ ] Generate WFE/SSP figures, unit ablations, length effects
+The next step is to run the acoustic pathway on the **same wordlists** so we can directly reproduce the paper’s behavioral analyses (length effects, WFE/SSP, and unit-49 ablations/early-EOS signatures).
 
-Only with paper-aligned wordlists can we test whether acoustic models exhibit the same behavioral signatures as phoneme-input models.
+Concretely, this means: (1) exporting the SWP train/eval wordlists, (2) generating audio for those items (TTS is the simplest first pass), (3) extracting wav2vec2/HuBERT features, then (4) training/testing `Ua_w2v` and running the existing `reproduce/scripts/` evaluation suite.
+
 
 ## Load weights
 
