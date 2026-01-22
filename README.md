@@ -2,24 +2,24 @@
 
 > Abstract
 >
-> Word repetition — hearing a word and repeating it aloud — is a skill that takes years to develop in children, poses challenges for adults learning new languages, and can break down after brain damage. Cognitive science proposes a multi-component model for this task, but the underlying neural mechanisms remain unclear. To bridge this gap, we train deep neural networks on word repetition and probe them with tests inspired by human behavioral studies. We also simulate brain damage through ablation studies, creating “patient models” whose errors can be compared to clinical speech errors. Our results show that neural models can reproduce several human-like effects, while also diverging in important ways, pointing to both the promise and the challenges of developing biologically grounded models of language.
+> Word repetition — hearing a word and repeating it aloud — is a skill that takes years to develop in children, poses challenges for adults learning new languages, and can break down after brain damage. Cognitive science proposes a multi-component model for this task, but the underlying neural mechanisms remain unclear. To bridge this gap, we train deep neural networks on word repetition and probe them with tests inspired by human behavioral studies. We also simulate brain damage through ablation studies, creating "patient models" whose errors can be compared to clinical speech errors. Our results show that neural models can reproduce several human-like effects, while also diverging in important ways, pointing to both the promise and the challenges of developing biologically grounded models of language.
 
-Neural models for single-word processing with an auditory repetition pathway. This repo supports training from scratch, evaluation on controlled datasets, and reproducing the paper’s figures and analyses. (swp = single word processing)
+Neural models for single-word processing with an auditory repetition pathway. This repo supports training from scratch, evaluation on controlled datasets, and reproducing the paper's figures and analyses. (swp = single word processing)
 
 [![arXiv](https://img.shields.io/badge/arXiv-2506.13450-b31b1b.svg)](https://arxiv.org/abs/2506.13450)
 
 ## Table of contents
 
-- Setup
-- Training
-- Acoustic pathway (Ua_w2v)
-- Load weights
-- Repository structure
-- Reproduce the paper figures
-- Reproducibility practices (seeds, paths, caching)
-- Troubleshooting
-- Experimental: Sentence-level acoustic extraction
-- Citations
+- [Setup](#setup)
+- [Training](#training)
+- [Acoustic pathway (Ua_w2v)](#acoustic-pathway-ua_w2v)
+- [Load weights](#load-weights)
+- [Repository structure](#repository-structure)
+- [Reproduce the paper figures](#reproduce-the-paper-figures)
+- [Reproducibility practices](#reproducibility-practices)
+- [Troubleshooting](#troubleshooting)
+- [Experimental: Sentence-level acoustic extraction](#experimental-sentence-level-acoustic-extraction)
+- [Citations](#citations)
 
 ## Setup
 
@@ -47,7 +47,7 @@ pyenv virtualenv 3.11.0 swpm
 pyenv activate swpm
 ```
 
-### Training
+## Training
 
 Run the training script with your hyperparameters:
 
@@ -74,9 +74,14 @@ What gets saved where
 
 ## Acoustic pathway (Ua_w2v)
 
-The acoustic pathway (`Ua_w2v`) uses frozen wav2vec2 features as input instead of phoneme sequences, while keeping the **same phoneme decoder** as `Ua`. This enables direct comparison between phoneme-input and acoustic-input models on the single-word repetition task.
+> **Branch**: `feature/acoustic-wav2vec`
 
-**Why word-level audio?** The paper studies single-word repetition, not sentence-level speech recognition. We use the [Speech Commands](https://huggingface.co/datasets/google/speech_commands) dataset (isolated single-word utterances) to match this setting. For sentence-level experiments (not comparable to Ua), see [Experimental: Sentence-level acoustic extraction](#experimental-sentence-level-acoustic-extraction).
+The acoustic pathway (`Ua_w2v`) replaces phoneme-input with frozen wav2vec2 features while keeping the exact same phoneme decoder as `Ua`. This enables direct comparison between oracle phoneme input and realistic acoustic input on single-word repetition.
+
+**Key points:**
+- Uses Speech Commands dataset (35 words, isolated utterances) for word-level baseline
+- Same decoder architecture, vocabulary (42 phonemes), and training procedure as `Ua`
+- For sentence-level experiments (not comparable to Ua), see [Experimental: Sentence-level acoustic extraction](#experimental-sentence-level-acoustic-extraction)
 
 ### Prerequisites
 
@@ -84,114 +89,90 @@ The acoustic pathway (`Ua_w2v`) uses frozen wav2vec2 features as input instead o
 pip install transformers datasets torchaudio
 ```
 
-Note: The Speech Commands dataset uses a custom HuggingFace loading script, so the extraction script sets `trust_remote_code=True`.
+### Quick start
 
-### Quick start (word-level)
-
-```bash
-# 1. Extract wav2vec2 features from Speech Commands (35 words × 100 samples)
-python scripts/extract_speech_commands.py \
-    --output_dir ./acoustic_words_train \
-    --limit 100
-
-# 2. Train acoustic model
-python scripts/train_acoustic.py \
-    --manifest_path ./acoustic_words_train/manifest.json \
-    --batch_size 32 \
-    --num_epochs 50 \
-    --verbose
-
-# 3. Test (auto-detects model from manifest)
-python scripts/test_acoustic.py \
-    --manifest_path ./acoustic_words_train/manifest.json \
-    --verbose
-```
-
-### Overfit sanity check
-
-To verify the pipeline works, train on a tiny subset:
-
-```bash
-# Extract 10 samples of just "yes"
-python scripts/extract_speech_commands.py \
-    --output_dir ./acoustic_words_overfit \
-    --words yes \
-    --limit 10
-
-# Train (should reach 0 errors within ~50 epochs)
-python scripts/train_acoustic.py \
-    --manifest_path ./acoustic_words_overfit/manifest.json \
-    --batch_size 10 \
-    --num_epochs 100 \
-    --verbose
-
-# Test (expect 100% accuracy)
-python scripts/test_acoustic.py \
-    --manifest_path ./acoustic_words_overfit/manifest.json \
-    --verbose
-```
-
-Expected output: `Accuracy: 1.0000 (0.00% error rate)` with predictions exactly matching `Y EH S <EOS>`.
-
-### Model naming
-
-Acoustic models follow the same naming convention as `Ua`:
-
-- `model_name`: `Ua_w2v_LSTM_h128_l1_v42_d0.0_t0.0_s1__gi768`
-  - `Ua_w2v` = auditory pathway with wav2vec2 features
-  - `gi768` = input dimension (768 for wav2vec2-base)
-- `train_name`: `b32_l0.001_fall_s42_sn_ec` (same format as `Ua`)
-
-### Design notes
-
-- **Frozen wav2vec2**: Features are extracted offline (no fine-tuning). Only the projection layer and RNN are trained.
-- **Same decoder**: `Ua_w2v` uses the identical `DecoderLSTM` and phoneme vocabulary as `Ua`, enabling direct comparison.
-- **Length-safe encoding**: Uses `pack_padded_sequence` so padding doesn't affect hidden state representations.
-
-### Results
-
-**Overfit sanity check (b10, 10 samples):**
-
-![Overfit learning curves](docs/figures/learning_curve_overfit_b10.png)
-
-The model successfully overfits to a tiny dataset, reaching 0 errors within 50-100 epochs. This validates that the architecture and training loop work correctly.
-
-**Full word-level training (b32, 3500 samples):**
-
-![Full training learning curves](docs/figures/learning_curve_full_b32.png)
-
-On the full Speech Commands dataset, the model achieves ~100% accuracy at epoch 50, demonstrating successful word-level repetition learning from acoustic features.
-
-### Generate learning curve figures
-
-After training, generate learning curve plots from the training logs:
-
-```bash
-# Generate figures for all acoustic models
-python scripts/make_acoustic_figures.py
-
-# Generate figure for a specific run
-python scripts/make_acoustic_figures.py \
-    --model_name Ua_w2v_LSTM_h128_l1_v42_d0.0_t0.0_s1__gi768 \
-    --train_name b32_l0.001_fall_s42_sn_ec
-
-# Specify output directory
-python scripts/make_acoustic_figures.py --output_dir ./figs
-```
-
-Figures are saved to `./figs/` by default and include train/valid loss and error curves.
-
-### Run full smoke test
-
-To run the entire acoustic pipeline (extraction → training → testing) for both overfit and full word-level settings:
+Run the full end-to-end smoke test:
 
 ```bash
 ./run_acoustic_smoke.sh
 ```
 
-This creates logs in `./logs_acoustic_words/` and trained models in `./weights/`.
+Verify auto-detection picks correct models:
 
-### Load weights
+```bash
+python scripts/test_acoustic.py --manifest_path ./acoustic_words_overfit/manifest.json --verbose
+python scripts/test_acoustic.py --manifest_path ./acoustic_words_train/manifest.json --verbose
+```
+
+Generate learning curve figures:
+
+```bash
+python scripts/make_acoustic_figures.py --output_dir ./docs/figs/ua_w2v
+```
+
+### Outputs
+
+**Logs and weights:**
+- Training logs: `./logs_acoustic_words/`
+- Model checkpoints: `./weights/Ua_w2v_LSTM_h128_l1_v42_d0.0_t0.0_s1__gi768/<train_name>/<epoch>.pth`
+- Run metadata: `./weights/.../run_info.json` (contains `manifest_path` for auto-detection)
+
+**Auto-detection:**
+Test scripts auto-detect the correct trained model by filtering `run_info.json` files that match the provided `manifest_path`. If multiple matches exist, the most recent is selected.
+
+**Figures:**
+- Learning curves: `./docs/figs/ua_w2v/learning_curve_*.png`
+
+### Code changes in this branch
+
+**Added:**
+- `scripts/train_acoustic.py` — Training script for Ua_w2v
+- `scripts/test_acoustic.py` — Evaluation with manifest-based auto-detect
+- `scripts/make_acoustic_figures.py` — Generate learning curve PNGs from logs
+- `swp/models/acoustic_encoder.py` — AcousticEncoder (projection + LSTM + pack_padded_sequence)
+- `swp/datasets/acoustic.py` — Acoustic dataloaders
+- `swp/train/acoustic.py` — Training loop (saves run_info.json)
+- `run_acoustic_smoke.sh` — End-to-end smoke test (b10 overfit + b32 full)
+- `docs/figs/ua_w2v/*.png` — Curated learning curves
+
+**Modified:**
+- `swp/models/autoencoder.py` — Added AcousticUnimodel
+- `swp/utils/models.py` — Added Ua_w2v parsing + instantiation
+- `swp/utils/paths.py` — Path helpers for acoustic artifacts
+- `README.md`, `.gitignore` — Documentation + ignore rules
+
+**Behavioral fixes:**
+- `trust_remote_code=True` for Speech Commands loading (no interactive prompts)
+- Test auto-detect filters by normalized `manifest_path` match (picks most recent if multiple)
+
+### Example figures
+
+**Overfit sanity check (b10, 10 samples of "yes"):**
+
+![Overfit learning curves](docs/figs/ua_w2v/learning_curve_overfit_b10.png)
+
+Reaches 0 errors within 50 epochs, validating the acoustic encoder → phoneme decoder architecture.
+
+**Full word-level training (b32, 3500 samples, 35 words × 100 utterances):**
+
+![Full training learning curves](docs/figs/ua_w2v/learning_curve_full_b32.png)
+
+Achieves 100% accuracy at epoch 50, demonstrating successful word-level repetition from frozen wav2vec2 features.
+
+### Architecture
+
+**Model naming** (follows Ua convention):
+- `model_name`: `Ua_w2v_LSTM_h128_l1_v42_d0.0_t0.0_s1__gi768`
+  - `Ua_w2v` = auditory pathway with wav2vec2
+  - `gi768` = input dimension (768 for wav2vec2-base)
+- `train_name`: `b32_l0.001_fall_s42_sn_ec`
+
+**Design:**
+- Frozen wav2vec2-base (offline feature extraction, no fine-tuning)
+- Encoder: Linear projection (768→128) + LSTM (h=128, l=1) + `pack_padded_sequence`
+- Decoder: Identical to Ua (DecoderLSTM, vocab=42, teacher forcing, cross-entropy)
+
+### Load trained models
 
 ```python
 from swp.utils.models import get_model, load_weights
@@ -206,6 +187,19 @@ model = get_model(model_name)
 load_weights(model, model_name, train_name, checkpoint, device)
 ```
 
+### Next steps: Paper-aligned TTS wordlists (WFE/SSP)
+
+Speech Commands is a sanity baseline but not aligned with the paper's curated wordlists. To enable paper-aligned behavioral analyses (WFE, SSP, unit-49 ablation, early-EOS signatures):
+
+- [ ] Export SWP train/eval wordlists to .txt
+- [ ] Generate TTS audio (gTTS, pyttsx3, or Tacotron2)
+- [ ] Extract wav2vec2 features from TTS audio
+- [ ] Train Ua_w2v on SWP wordlists
+- [ ] Run paper-aligned eval scripts (`reproduce/scripts/`)
+- [ ] Generate WFE/SSP figures, unit ablations, length effects
+
+Only with paper-aligned wordlists can we test whether acoustic models exhibit the same behavioral signatures as phoneme-input models.
+
 ## Load weights
 
 Load trained `Ua` (phoneme-input) models:
@@ -216,16 +210,14 @@ from swp.utils.setup import set_device
 
 model_name = "Ua_LSTM_h128_l1_v42_d0.0_t0.0_s1"
 train_name = "b1024_l0.001_fall_s42_sn_ec"
-checkpoint = "75"  # epoch number or checkpoint like "1_3"
+checkpoint = "75"
 
 device = set_device()
 model = get_model(model_name)
 load_weights(model=model, model_name=model_name, train_name=train_name, checkpoint=checkpoint, device=device)
-
-# model is now ready for evaluation/analysis
 ```
 
-Alternatively, you can use the test script to evaluate and produce figures for a trained model:
+Alternatively, evaluate using the test script:
 
 ```bash
 python scripts/test_repetition.py \
@@ -236,62 +228,49 @@ python scripts/test_repetition.py \
 	--verbose
 ```
 
-Outputs
-
-- Results: `results/evaluation/<model_name>/<train_name>/<checkpoint>/...`
-- Figures: `results/figures/<model_name>/<train_name>/<checkpoint>/evaluation/...`
+**Outputs:**
+- Results: `results/evaluation/<model_name>/<train_name>/<checkpoint>/`
+- Figures: `results/figures/<model_name>/<train_name>/<checkpoint>/evaluation/`
 
 ## Repository structure
 
-Top-level folders:
+```
+swp-model/
+├── swp/                    # Core package
+│   ├── datasets/           # Phoneme folds, acoustic dataloaders
+│   ├── models/             # Encoders, decoders (AcousticEncoder, DecoderLSTM)
+│   ├── train/              # Training loops (repetition.py, acoustic.py)
+│   ├── test/               # Evaluation logic
+│   ├── viz/                # Plotting utilities
+│   └── utils/              # Paths, model parsing, seeding
+├── scripts/                # CLI entry points
+│   ├── train_repetition.py, train_acoustic.py
+│   ├── test_repetition.py, test_acoustic.py
+│   ├── make_acoustic_figures.py
+│   └── train_repetition.sh (Slurm wrapper)
+├── reproduce/              # Paper figure reproduction
+│   ├── scripts/            # Behavioral, embeddings, ablations
+│   └── reproduce.ipynb
+├── stimuli/                # Folds, morphemes, handmade stimuli
+├── weights/                # Model checkpoints (auto-created)
+├── results/                # Evaluation outputs (auto-created)
+└── docs/figs/              # Curated figures for README
+```
 
-- `swp/` — Core Python package
-  - `datasets/` — Dataset loaders and helpers (phoneme folds, evaluation sets)
-  - `models/` — Encoders/decoders and container models (auditory Unimodel)
-  - `train/` — Training loops (e.g., `repetition.py` saves epoch checkpoints)
-  - `test/` — Evaluation logic (behavioral metrics, error analysis)
-  - `viz/` — Plotting utilities for figures and analyses
-  - `utils/` — Paths, seeding, model name/args parsing, weight IO, grid tools
-- `scripts/` — CLI entry points for training/eval and Slurm
-  - `train_repetition.py` — Local training (phoneme-input Ua)
-  - `train_acoustic.py` — Local training (acoustic-input Ua_w2v)
-  - `test_repetition.py` — Evaluate Ua checkpoints; save results + figures
-  - `test_acoustic.py` — Evaluate Ua_w2v checkpoints
-  - `extract_speech_commands.py` — Extract wav2vec2 features from Speech Commands (word-level)
-  - `extract_features.py` — Extract wav2vec2 features from LibriSpeech (sentence-level, experimental)
-  - `make_acoustic_figures.py` — Generate learning curve PNGs from training logs
-  - `train_repetition.sh` — Slurm training wrapper (Jean Zay)
-  - `grid_search.sh` — Submit a grid of Slurm jobs
-  - `local_test.sh` — Run Slurm scripts locally (no SBATCH)
-  - `generate_queuer.py` — Generate job queue from a grid
-- `reproduce/` — Reproduction code for paper figures
-  - `scripts/` — Modular analyses (e.g., behavioral, embeddings, ablations, univariate)
-  - `reproduce.ipynb` — Unified notebook to re-run figures
-  - `datasets/` — CSVs used for reproduction (e.g., WFE, SSP)
-- `stimuli/` — Data assets (folds, morphemes, handmade stimuli)
-- `weights/` — Local checkpoints directory (auto-created)
-- `results/` — Evaluation outputs and figures (auto-created)
-- `notebooks/` — Additional analysis notebooks
-- `ipa-dict/` — IPA resources
-- `CORnet/` — External submodule
-
-Key naming conventions
-
-- `model_name`: Encodes architecture and hyperparameters (decoder type, hidden size, layers, vocab size, dropout, teacher-forcing, start token)
-- `train_name`: Encodes training regime (batch size, learning rate, fold, seed, stress flag, loss type)
+**Key conventions:**
+- `model_name`: architecture + hyperparameters (LSTM_h128_l1_v42_d0.0_t0.0_s1)
+- `train_name`: training regime (b1024_l0.001_fall_s42_sn_ec)
 
 ## Reproduce the paper figures
 
-Run the modular scripts from `reproduce/scripts/` or use the master runner.
-
-Run all analyses via the master script
+Run all analyses:
 
 ```bash
 cd reproduce/scripts
 python run_all.py
 ```
 
-Run an individual analysis (example: univariate feature importance)
+Run individual analysis:
 
 ```bash
 cd reproduce/scripts
@@ -302,48 +281,41 @@ python univariate_analysis.py \
 	--hidden-size 128
 ```
 
-Use your own trained weights in analyses
-
-- Pass a direct file path to `--weights-path`, e.g.:
-  `weights/<model_name>/<train_name>/<epoch>.pth`
-- Keep `--model-name` consistent with how you trained the model.
+Use your own trained weights by passing `weights/<model_name>/<train_name>/<epoch>.pth` to `--weights-path`.
 
 ## Reproducibility practices
 
-- Seeding: we call `seed_everything(42)` and set device consistently (`swp/utils/setup.py`).
-- Paths: all save/load locations are centralized in `swp/utils/paths.py`. On Jean Zay, paths switch to `$WORK` automatically; locally they default to the repo folders.
-- Caching: scripts save intermediate CSVs/NPYs to `results/` or `reproduce/data/` to avoid recomputation; use `--regenerate` where available to refresh.
-- Naming: `model_name` and `train_name` encode configuration and regime for transparent experiments.
-- Environment capture: consider exporting `pip freeze > requirements.lock` for archival of your exact environment.
+- **Seeding**: `seed_everything(42)` called consistently (`swp/utils/setup.py`)
+- **Paths**: Centralized in `swp/utils/paths.py` (auto-switches to `$WORK` on Jean Zay)
+- **Caching**: Scripts save CSVs/NPYs to avoid recomputation; use `--regenerate` to refresh
+- **Naming**: `model_name` and `train_name` encode full configuration for transparency
+- **Environment**: Export `pip freeze > requirements.lock` for archival
 
 ## Troubleshooting
 
-- FileNotFoundError for weights
-  - If you run from inside `reproduce/scripts/`, relative paths resolve from that folder. Either run from repo root or pass absolute paths. For trained models, use: `weights/<model_name>/<train_name>/<epoch>.pth`.
-- Missing packages (e.g., `sklearn`)
-  - Install with `pip install -r requirements.txt`. On Slurm, the job scripts set up the env automatically.
-- CUDA not found / GPU not visible
-  - Check `python -c "import torch; print(torch.cuda.is_available())"`. On Slurm, ensure the proper module is loaded and `--gres` is set.
+- **FileNotFoundError for weights**: Run from repo root or use absolute paths. Format: `weights/<model_name>/<train_name>/<epoch>.pth`
+- **Missing packages**: Install with `pip install -r requirements.txt`
+- **CUDA not found**: Check `python -c "import torch; print(torch.cuda.is_available())"`
 
 ## Experimental: Sentence-level acoustic extraction
 
-> **Note**: This section describes sentence-level audio extraction from LibriSpeech, which is **not directly comparable** to the single-word `Ua` models in the paper. Use the Speech Commands word-level pipeline above for comparable experiments.
+> ⚠️ **WARNING**: Sentence-level LibriSpeech extraction is **NOT comparable** to single-word Ua models. Use Speech Commands (word-level) for paper-aligned experiments.
 
-The `scripts/extract_features.py` script extracts wav2vec2 features from LibriSpeech sentences. This may be useful for future experiments on longer sequences, but the task distribution differs significantly from single-word repetition.
+LibriSpeech extraction differs significantly from single-word repetition:
+- Variable length (50-100+ phonemes vs. 3-8 for words)
+- Much harder task (early models produce degenerate outputs)
+- Not aligned with paper evaluations (WFE, SSP, ablations assume single words)
+
+**Usage** (experimental only):
 
 ```bash
-# Extract features from LibriSpeech validation set (sentences, not comparable to Ua)
 python scripts/extract_features.py \
     --output_dir ./acoustic_features_sentences \
     --split validation.clean \
     --limit 100
 ```
 
-Key differences from word-level:
-- LibriSpeech samples are full sentences (50-100+ phonemes)
-- Task difficulty is much higher
-- Error patterns will differ from single-word models
-- Not suitable for direct comparison with paper results
+For paper-aligned work, use Speech Commands (word-level) or the recommended TTS approach (see "Next steps" above).
 
 ## Citations
 

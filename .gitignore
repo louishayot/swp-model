@@ -179,5 +179,5 @@ logs_acoustic_*/
 figs/
 
 # curated figures for README (tracked)
-!docs/figures/
-!docs/figures/*.png
+!docs/figs/
+!docs/figs/**/*.png
