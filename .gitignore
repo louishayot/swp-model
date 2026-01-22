@@ -173,3 +173,10 @@ notebooks/data
 reproduce/data
 reproduce/figures
 !reproduce/weights
+
+# Acoustic artifacts (local)
+acoustic_features_*/
+acoustic_words_*/
+
+# Learning curves (local)
+docs/figs/learning_curve_Ua_w2v_*.png

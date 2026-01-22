@@ -10,14 +10,22 @@ Neural models for single-word processing with an auditory repetition pathway. Th
 
 ## Table of contents
 
-- Setup
-- Training
-- Load weights
-- Repository structure
-- Reproduce the paper figures
-- Reproducibility practices (seeds, paths, caching)
-- Troubleshooting
-- Citations
+- [A Neural Model for Word Repetition](#a-neural-model-for-word-repetition)
+  - [Table of contents](#table-of-contents)
+  - [Setup](#setup)
+    - [Training](#training)
+    - [Load weights](#load-weights)
+  - [Orthographic pathway (Ut): characters → phonemes (shared decoder)](#orthographic-pathway-ut-characters--phonemes-shared-decoder)
+    - [Quick start](#quick-start)
+    - [Outputs](#outputs)
+    - [Code changes in this branch](#code-changes-in-this-branch)
+    - [Example figures](#example-figures)
+    - [Next steps](#next-steps)
+  - [Repository structure](#repository-structure)
+  - [Reproduce the paper figures](#reproduce-the-paper-figures)
+  - [Reproducibility practices](#reproducibility-practices)
+  - [Troubleshooting](#troubleshooting)
+  - [Citations](#citations)
 
 ## Setup
 
@@ -131,9 +139,30 @@ python scripts/train_text.py --num_epochs 1 --batch_size 64 --fold_id 0 --verbos
 python scripts/test_text.py --model_name <Ut_MODEL_NAME> --train_name <TRAIN_NAME> --checkpoint <CKPT>
 ```
 
-Outputs are written under:
+### Outputs
+
 - `results/evaluation/<model_name>/<train_name>/<checkpoint>/control/evaluation.csv`
 - `results/figures/<model_name>/<train_name>/<checkpoint>/evaluation/`
+
+> `results/` is gitignored. For PR visibility, example figures are committed to `docs/figs/ut/`.
+
+### Code changes in this branch
+
+**Added:**
+- `swp/datasets/text.py` — TextTrainDataset, TextTestDataset, text dataloaders
+- `swp/train/text.py` — training loop for Ut models
+- `swp/test/text.py` — evaluation loop for Ut models
+- `scripts/train_text.py` — CLI entry point for training
+- `scripts/test_text.py` — CLI entry point for evaluation
+- `stimuli/chars_to_id.json` — character vocabulary (auto-generated, committed for reproducibility)
+- `docs/figs/ut/` — example figures for PR review
+
+**Modified:**
+- `swp/models/encoders.py` — added `TextEncoder`, `TextEncoderRNN`, `TextEncoderLSTM`
+- `swp/models/autoencoder.py` — fixed `Unimodel` to always define `is_auditory`/`is_text`/`is_visual`; updated forward dispatch
+- `swp/utils/models.py` — added `TextArgs`, support for `Ut` model names with `__g{N}` suffix
+- `swp/utils/datasets.py` — added `get_char_to_id()`, `create_char_to_id()`
+- `swp/datasets/__init__.py` — exported text dataloaders
 
 ### Example figures
 
@@ -158,8 +187,14 @@ Same analysis on pooled conditions. |
 
 ### Next steps
 
-- **Pixel-based visual pathway (Uv):** planned extension using rendered word images → CNN encoder → same phoneme decoder, enabling comparison between symbolic orthography (Ut) and pixel-level visual processing.
-- **Auditory front-end:** future work to replace discrete phoneme input with spectrograms or learned auditory features for a more realistic auditory pathway.
+`Ut` is a **symbolic orthography baseline**: it maps discrete characters to phonemes, bypassing pixel-level visual processing.
+
+**Visual pathway (Uv) — planned:**
+- **Primary approach:** rendered word images → CNN/CORnet encoder → same phoneme decoder. This is end-to-end pixel-to-phonology, enabling comparison with both `Ua` (auditory) and `Ut` (symbolic).
+
+- **Optional control:** pixels → OCR → characters → `Ut` → phonemes. This OCR-bridged baseline isolates the contribution of visual feature extraction vs. orthographic-to-phonological mapping.
+
+**Auditory front-end:** realistic auditory input (wav2vec, spectrograms) is handled on a separate branch and not documented here.
 
 ## Repository structure
 
