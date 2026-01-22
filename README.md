@@ -16,6 +16,7 @@ Neural models for single-word processing with an auditory repetition pathway. Th
     - [Training](#training)
     - [Load weights](#load-weights)
   - [Orthographic pathway (Ut): characters → phonemes (shared decoder)](#orthographic-pathway-ut-characters--phonemes-shared-decoder)
+    - [Status / what’s missing](#status--whats-missing)
     - [Quick start](#quick-start)
     - [Outputs](#outputs)
     - [Code changes in this branch](#code-changes-in-this-branch)
@@ -113,6 +114,8 @@ Outputs
 
 ## Orthographic pathway (Ut): characters → phonemes (shared decoder)
 
+> **Branch**: `feature/orthography-baseline`
+
 This branch adds an orthographic baseline `Ut` to the SWP model: written words (characters) are encoded with an RNN/LSTM and decoded into phonemes using the same decoder/output space as the auditory pathway (`Ua`).
 
 **Why**: enables direct comparison between auditory repetition (phoneme→phoneme) and orthographic reading (char→phoneme) while keeping the decoding mechanism fixed.
@@ -122,6 +125,11 @@ This branch adds an orthographic baseline `Ut` to the SWP model: written words (
 - New text encoder (`TextEncoderRNN/LSTM`) with its own embedding (char vocab ≠ phoneme vocab)
 - New text dataset/dataloaders: `Word` → char ids (+ `<EOS>`) and targets are phoneme ids (+ `<EOS>`)
 - Model naming supports: `Ut_...__g{char_vocab_size}` (example: `__g30`)
+
+### Status / what’s missing
+- **Status:** `Ut` (char → phoneme) runs end-to-end (train + test + figures) and keeps the **exact same phoneme decoder / vocab** as `Ua` for comparability. Example figs are committed under `docs/figs/ut/`.
+- **What’s missing to fully meet the follow-up:** train `Ut` to convergence (paper-like regime), then run paper-style probes/ablations on `Ut`; and implement the **pixel-level** visual pathway `Uv` (rendered word images → CORnet/CNN → same phoneme decoder).
+
 
 ### Quick start
 **Vocab sanity check**
@@ -184,6 +192,9 @@ Error rate by relative phoneme position. | Regression summary on real-word items
 :---: |
 ![Both](docs/figs/ut/errors_import_both.png) |
 Same analysis on pooled conditions. |
+
+These plots mirror the paper’s diagnostics (length/frequency/position/feature-importance) but should be interpreted as **pipeline checks** at this stage.
+The goal is to confirm that `Ut` produces the same *types* of analyses as `Ua`; effect sizes and robustness will be assessed after full training.
 
 ### Next steps
 
