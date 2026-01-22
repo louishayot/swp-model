@@ -107,7 +107,7 @@ python scripts/test_acoustic.py --manifest_path ./acoustic_words_train/manifest.
 Generate learning curve figures:
 
 ```bash
-python scripts/make_acoustic_figures.py --output_dir ./docs/figs/ua_w2v
+python scripts/make_acoustic_figures.py --output_dir ./docs/figures
 ```
 
 ### Outputs
@@ -121,7 +121,7 @@ python scripts/make_acoustic_figures.py --output_dir ./docs/figs/ua_w2v
 Test scripts auto-detect the correct trained model by filtering `run_info.json` files that match the provided `manifest_path`. If multiple matches exist, the most recent is selected.
 
 **Figures:**
-- Learning curves: `./docs/figs/ua_w2v/learning_curve_*.png`
+- Learning curves: `./docs/figures/learning_curve_*.png`
 
 ### Code changes in this branch
 
@@ -133,7 +133,7 @@ Test scripts auto-detect the correct trained model by filtering `run_info.json` 
 - `swp/datasets/acoustic.py` — Acoustic dataloaders
 - `swp/train/acoustic.py` — Training loop (saves run_info.json)
 - `run_acoustic_smoke.sh` — End-to-end smoke test (b10 overfit + b32 full)
-- `docs/figs/ua_w2v/*.png` — Curated learning curves
+- `docs/figures/*.png` — Curated learning curves
 
 **Modified:**
 - `swp/models/autoencoder.py` — Added AcousticUnimodel
@@ -149,13 +149,13 @@ Test scripts auto-detect the correct trained model by filtering `run_info.json` 
 
 **Overfit sanity check (b10, 10 samples of "yes"):**
 
-![Overfit learning curves](docs/figs/ua_w2v/learning_curve_overfit_b10.png)
+![Overfit learning curves](docs/figures/learning_curve_overfit_b10.png)
 
 Reaches 0 errors within 50 epochs, validating the acoustic encoder → phoneme decoder architecture.
 
 **Full word-level training (b32, 3500 samples, 35 words × 100 utterances):**
 
-![Full training learning curves](docs/figs/ua_w2v/learning_curve_full_b32.png)
+![Full training learning curves](docs/figures/learning_curve_full_b32.png)
 
 Achieves 100% accuracy at epoch 50, demonstrating successful word-level repetition from frozen wav2vec2 features.
 
