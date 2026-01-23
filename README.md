@@ -318,6 +318,10 @@ LibriSpeech extraction differs significantly from single-word repetition:
 - Much harder task (early models produce degenerate outputs)
 - Not aligned with paper evaluations (WFE, SSP, ablations assume single words)
 
+Why this exists? this was added as a quick end-to-end check for wav2vec feature extraction on variable-length audio.
+Early models often produce degenerate outputs here (e.g., repeated single-phoneme strings like "HH"), so this section is intentionally labeled experimental and kept separate from paper-aligned word-level results.
+
+
 **Usage** (experimental only):
 
 ```bash
