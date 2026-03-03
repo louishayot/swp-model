@@ -173,3 +173,6 @@ notebooks/data
 reproduce/data
 reproduce/figures
 !reproduce/weights
+# codec baseline — large external audio assets
+data/external/
+stimuli/audio/

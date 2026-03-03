@@ -132,3 +132,39 @@ def get_notebooks_dir() -> pathlib.Path:
     notebooks_dir = repo_root / "notebooks"
     notebooks_dir.mkdir(parents=True, exist_ok=True)
     return notebooks_dir
+
+
+# ---------------------------------------------------------------------------
+# Codec baseline paths  (reproduce/data/codec/ and reproduce/figures/codec/)
+# ---------------------------------------------------------------------------
+
+def get_external_data_dir() -> pathlib.Path:
+    """Root directory for large external datasets (gitignored)."""
+    d = repo_root / "data" / "external"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def get_codec_results_dir(codec_name: str) -> pathlib.Path:
+    """Per-codec directory for cached reconstruction CSVs."""
+    d = repo_root / "reproduce" / "data" / "codec" / codec_name
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def get_codec_figures_dir(codec_name: str) -> pathlib.Path:
+    """Per-codec directory for analysis figures."""
+    d = repo_root / "reproduce" / "figures" / "codec" / codec_name
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def get_codec_comparison_figures_dir(suffix: str = "") -> pathlib.Path:
+    """Directory for cross-codec comparison figures.
+
+    If suffix is given (e.g. 'TRIM'), the directory is 'comparison__TRIM'.
+    """
+    dirname = f"comparison__{suffix}" if suffix else "comparison"
+    d = repo_root / "reproduce" / "figures" / "codec" / dirname
+    d.mkdir(parents=True, exist_ok=True)
+    return d
