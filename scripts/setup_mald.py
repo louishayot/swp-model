@@ -197,6 +197,15 @@ def parse_args() -> argparse.Namespace:
         dest="data_dir",
         help=f"Directory containing MALD data (default: {_DEFAULT_DATA_DIR})",
     )
+    p.add_argument(
+        "--phones-min", type=int, default=3, dest="phones_min",
+        help="Minimum num_phones for subset sampling (default: 3). "
+             "Matches the CCN paper phone range when combined with --phones-max 9.",
+    )
+    p.add_argument(
+        "--phones-max", type=int, default=9, dest="phones_max",
+        help="Maximum num_phones for subset sampling (default: 9).",
+    )
     return p.parse_args()
 
 
@@ -366,6 +375,23 @@ def main() -> None:
             )
 
     # ----------------------------------------------------------------
+    # Phone-range filter (applied before sampling)
+    # ----------------------------------------------------------------
+    n_before_filter = len(df)
+    df_pool = df[
+        (df["num_phones"] >= args.phones_min) &
+        (df["num_phones"] <= args.phones_max)
+    ].copy().reset_index(drop=True)
+    log()
+    log(f"PHONE RANGE FILTER [{args.phones_min}, {args.phones_max}]: "
+        f"{n_before_filter} → {len(df_pool)} items available for sampling")
+    if len(df_pool) == 0:
+        log("ERROR: No items remain after phone-range filter. "
+            "Adjust --phones-min / --phones-max.")
+        _save_diagnostics(data_dir, diag)
+        sys.exit(1)
+
+    # ----------------------------------------------------------------
     # Stratified subset selection
     # ----------------------------------------------------------------
     n_per_lex = 10 if args.tiny else 200
@@ -374,10 +400,11 @@ def main() -> None:
 
     log()
     log(f"SUBSET SELECTION ({'TINY' if args.tiny else 'FULL'}: "
-        f"{n_per_lex} per lexicality, seed={args.seed}):")
+        f"{n_per_lex} per lexicality, seed={args.seed}, "
+        f"phones [{args.phones_min}, {args.phones_max}]):")
 
-    words_df = df[df["is_word"] == True]
-    pseudo_df = df[df["is_word"] == False]
+    words_df = df_pool[df_pool["is_word"] == True]
+    pseudo_df = df_pool[df_pool["is_word"] == False]
 
     words_subset = _sample_stratified(words_df, n_per_lex, rng, "Words", log)
     pseudo_subset = _sample_stratified(pseudo_df, n_per_lex, rng, "Pseudowords", log)

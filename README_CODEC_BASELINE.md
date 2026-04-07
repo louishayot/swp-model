@@ -12,20 +12,33 @@ commands below. Nothing in `reproduce/data/`, `reproduce/figures/`, or
 
 ## Quickstart
 
+### Prerequisites
+
+```bash
+pip install -r requirements.txt
+```
+
+Key codec dependencies (already in `requirements.txt`):
+- `transformers>=4.36.0` — EnCodec model (HuggingFace)
+- `torchaudio>=2.5.0` — audio loading and resampling
+- `torchcodec>=0.1` — required by `torchaudio.load()`; without it you get an `ImportError` at runtime even though `import torchaudio` succeeds
+- `statsmodels>=0.14.4` — OLS regression in the analysis script
+
+---
+
 ### Step 0 — sanity check (no audio needed)
 
 Verify EnCodec loads and round-trips a synthetic waveform:
 
 ```bash
-python scripts/sanity_encodec.py                    # default: bw=6.0, sr=16kHz, 0.5s
-python scripts/sanity_encodec.py --bandwidth 1.5    # lower bandwidth
+python scripts/sanity_encodec.py
+python scripts/sanity_encodec.py --bandwidth 1.5
 python scripts/sanity_encodec.py --sr 44100 --duration 1.0
 ```
 
 What to look for:
-- `SI-SDR (dB)` in the range 8–18 dB at 6.0 kbps (lower at 1.5 kbps)
-- `mel_distance` small positive number (< 0.15 on noise)
-- `reencode_consistency` ≥ 0.90 (token codes stable across two round-trips)
+- Script exits `[PASS]` with all metrics finite — absolute values depend on signal type and device; white noise can yield low or negative SI-SDR, that is expected.
+- `reencode_consistency` should be > 0 (token codes are assigned and stable).
 
 ---
 
@@ -62,12 +75,9 @@ python scripts/setup_mald.py
 ```
 
 The script:
-- Selects items with `num_phones` in 3–9+, stratified by phone count within each
-  lexicality group (seed=42 for reproducibility).
-- Includes optional MALD columns when present:
-  `PhonotacticProbability`, `StressPattern`, `TempUP`, `OrthUP`, `PhonUP`,
-  `FreqSUBTLEX`, `FreqCOCA`, `FreqCOCAspok`, `FreqGoogle`
-- Prints speaker/session distribution and Mann-Whitney U test on duration.
+- Restricts sampling to `num_phones` in [`--phones-min`, `--phones-max`] (default 3–9), stratified by phone count within each lexicality group (seed=42 for reproducibility). Matches the CCN paper range out of the box.
+- Includes optional MALD columns when present: `PhonotacticProbability`, `StressPattern`, `TempUP`, `OrthUP`, `PhonUP`, `FreqSUBTLEX`, `FreqCOCA`, `FreqCOCAspok`, `FreqGoogle`
+- Prints column mapping, speaker scan, and phone/duration distribution diagnostics.
 
 ---
 

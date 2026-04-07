@@ -195,6 +195,7 @@ def main() -> None:
     # ---------------------------------------------------------------------------
     rows: list[dict] = []
     n_errors = 0
+    _torchcodec_missing = False  # set True on first torchcodec-related ImportError
 
     for idx, row in df_in.iterrows():
         audio_path = str(row["audio_path"])
@@ -205,6 +206,12 @@ def main() -> None:
 
         if not audio_path or not Path(audio_path).exists():
             print(f"  [{idx:>3}] SKIP  '{word}' — audio_path not found: {audio_path}")
+            record.update(_nan_metrics(args.codec, codec_kwargs, args.trim_silence))
+            rows.append(record)
+            continue
+
+        if _torchcodec_missing:
+            n_errors += 1
             record.update(_nan_metrics(args.codec, codec_kwargs, args.trim_silence))
             rows.append(record)
             continue
@@ -284,8 +291,17 @@ def main() -> None:
 
         except Exception as exc:  # noqa: BLE001
             n_errors += 1
-            print(f"  [{idx:>3}] ERROR '{word}': {exc}")
-            traceback.print_exc()
+            if isinstance(exc, ImportError) and not _torchcodec_missing:
+                _torchcodec_missing = True
+                print(
+                    f"  [{idx:>3}] FATAL  '{word}': {exc}\n"
+                    f"  torchaudio.load() requires torchcodec — "
+                    f"install it: pip install torchcodec==0.1\n"
+                    f"  Marking all remaining items as failed."
+                )
+            else:
+                print(f"  [{idx:>3}] ERROR '{word}': {exc}")
+                traceback.print_exc()
             record.update(_nan_metrics(args.codec, codec_kwargs, args.trim_silence))
 
         rows.append(record)
