@@ -100,8 +100,9 @@ python scripts/codec_reconstruct.py \
 **Silence-trimmed (leading/trailing silence removed before encoding):**
 
 > Always set `--output` explicitly for trimmed runs — the auto-generated filename
-> uses a hash of codec kwargs only and would collide with the non-trimmed run at
-> the same bandwidth.
+> uses a hash of codec kwargs only (not the trim flag), so a trimmed and non-trimmed
+> run **at the same bandwidth** produce the same path and one will overwrite the other.
+> Non-trimmed runs at *different* bandwidths are safe (different kwargs → different hash).
 
 ```bash
 python scripts/codec_reconstruct.py \
@@ -277,7 +278,7 @@ No changes to metrics, pipeline logic, CSV schema, or analysis code.
 
 ---
 
-## New files on this branch
+## Pipeline files
 
 | File | Purpose |
 |---|---|

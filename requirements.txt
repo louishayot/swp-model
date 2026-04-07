@@ -17,4 +17,4 @@ statsmodels>=0.14.4
 # codec baseline
 transformers>=4.36.0
 torchaudio>=2.5.0
-torchcodec>=0.1
+torchcodec==0.1

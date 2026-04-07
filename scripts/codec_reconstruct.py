@@ -147,6 +147,17 @@ def main() -> None:
         k, v = _parse_codec_arg(s)
         codec_kwargs[k] = v
 
+    # Safety: warn if silence trimming is requested without an explicit output path.
+    # The paramhash is derived from codec kwargs only (does not include trim_silence),
+    # so a trimmed run at bw=6.0 produces the same auto-path as a non-trimmed run.
+    if args.trim_silence and args.output is None:
+        print(
+            "WARNING: --trim-silence is set but --output was not specified.\n"
+            "  The auto-generated filename hashes codec kwargs only (ignores the trim flag).\n"
+            "  A non-trimmed run at the same bandwidth will be overwritten.\n"
+            "  Recommended: add --output reproduce/data/codec/encodec/subset__bw6_TRIM.csv"
+        )
+
     # Resolve output paths
     paramhash = _compute_paramhash(codec_kwargs)
     dataset_stem = Path(args.dataset).stem   # e.g. "subset_tiny"
@@ -296,7 +307,8 @@ def main() -> None:
                 print(
                     f"  [{idx:>3}] FATAL  '{word}': {exc}\n"
                     f"  torchaudio.load() requires torchcodec — "
-                    f"install it: pip install torchcodec==0.1\n"
+                    f"install it: pip install torchcodec==0.1  "
+                    f"(or: pip install -r requirements.txt)\n"
                     f"  Marking all remaining items as failed."
                 )
             else:
